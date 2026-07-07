@@ -293,8 +293,8 @@ export default function App() {
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover transition-all duration-1000 scale-105"
         />
-        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-[6px] transition-all duration-500" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-slate-950/40" />
+        <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-[4px] transition-all duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/25" />
       </div>
 
       {/* 2. Main Countdown Stage - Clean Centered Layout */}
