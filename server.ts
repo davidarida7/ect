@@ -233,14 +233,10 @@ app.post("/api/generate-image", async (req, res) => {
 
 function injectOgTags(template: string, query: any): string {
   const titleParam = query.title || query.event || query.t || query.name;
-  const dateParam = query.date || query.time || query.d || query.dt;
-  const tzParam = query.timezone || query.tz || query.zone;
   const imageParam = query.image || query.img || query.photo || query.bg || query.url;
 
-  // If required parameters are missing, let's keep it clean or fallback gracefully
-  const hasRequired = !!(titleParam && dateParam && tzParam);
-  const titleStr = hasRequired ? String(titleParam) : "Momentum Countdown";
-  const descStr = hasRequired 
+  const titleStr = titleParam ? String(titleParam) : "Momentum Countdown";
+  const descStr = titleParam 
     ? `Live countdown to ${titleStr}.` 
     : "Sleek custom live countdown event timer.";
 
@@ -262,8 +258,13 @@ function injectOgTags(template: string, query: any): string {
     `;
   }
 
-  // Remove any existing <title>...</title> tags (case-insensitive, multiline) to avoid duplicates
-  let result = template.replace(/<title\b[^>]*>([\s\S]*?)<\/title>/gi, "");
+  // Robustly remove any existing title, og:*, and twitter:* tags to avoid duplicate metadata conflicts
+  let result = template;
+  result = result.replace(/<title\b[^>]*>([\s\S]*?)<\/title>/gi, "");
+  result = result.replace(/<meta\s+property=["']og:[^"']*["']\s+content=["']([\s\S]*?)["']\s*\/?>/gi, "");
+  result = result.replace(/<meta\s+content=["']([\s\S]*?)["']\s+property=["']og:[^"']*["']\s*\/?>/gi, "");
+  result = result.replace(/<meta\s+name=["']twitter:[^"']*["']\s+content=["']([\s\S]*?)["']\s*\/?>/gi, "");
+  result = result.replace(/<meta\s+content=["']([\s\S]*?)["']\s+name=["']twitter:[^"']*["']\s*\/?>/gi, "");
 
   // Inject the dynamic tags immediately after the opening <head> tag
   result = result.replace(/<head\b[^>]*>/i, (match) => `${match}\n${tags}`);
