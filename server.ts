@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
+import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
@@ -230,6 +231,41 @@ app.post("/api/generate-image", async (req, res) => {
   }
 });
 
+function getOgTags(query: any): string {
+  const titleParam = query.title || query.event || query.t || query.name;
+  const imageParam = query.image || query.img || query.photo || query.bg || query.url;
+
+  if (!titleParam) {
+    return `
+      <title>Momentum Countdown</title>
+      <meta property="og:title" content="Momentum Countdown" />
+      <meta property="og:description" content="Sleek custom live countdown event timer." />
+      <meta property="og:type" content="website" />
+    `;
+  }
+
+  const titleStr = String(titleParam);
+  let tags = `
+    <title>${titleStr}</title>
+    <meta property="og:title" content="${titleStr}" />
+    <meta property="og:description" content="Anticipating the moments that lie ahead." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${titleStr}" />
+    <meta name="twitter:description" content="Anticipating the moments that lie ahead." />
+  `;
+
+  if (imageParam) {
+    const imgUrl = String(imageParam);
+    tags += `
+      <meta property="og:image" content="${imgUrl}" />
+      <meta name="twitter:image" content="${imgUrl}" />
+    `;
+  }
+
+  return tags;
+}
+
 // Start server and handle Vite development vs production serving
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
@@ -237,12 +273,45 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+
+    // Intercept GET / to dynamically inject meta tags during development
+    app.get("/", async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
+        
+        // Transform template through Vite (resolves module scripts, etc.)
+        template = await vite.transformIndexHtml(url, template);
+
+        // Replace the default title block with dynamic OG tags and custom title
+        const ogTagsBlock = getOgTags(req.query);
+        template = template.replace("<title>My Google AI Studio App</title>", ogTagsBlock);
+
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (err) {
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    
+    // Serve other assets statically, but skip index.html so we can process it dynamically
+    app.use(express.static(distPath, { index: false }));
+
+    // Dynamically inject custom metadata in production
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      try {
+        let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
+        
+        const ogTagsBlock = getOgTags(req.query);
+        template = template.replace("<title>My Google AI Studio App</title>", ogTagsBlock);
+
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (err) {
+        res.status(500).send("Internal Server Error");
+      }
     });
   }
 
