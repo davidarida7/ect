@@ -279,8 +279,8 @@ async function startServer() {
       appType: "spa",
     });
 
-    // Intercept GET / to dynamically inject meta tags during development
-    app.get("/", async (req, res, next) => {
+    // Intercept GET / and /index.html to dynamically inject meta tags during development
+    app.get(["/", "/index.html"], async (req, res, next) => {
       try {
         const url = req.originalUrl;
         let template = fs.readFileSync(path.resolve(process.cwd(), "index.html"), "utf-8");
@@ -301,10 +301,24 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     
+    // Intercept GET / and /index.html before express.static to always render dynamically
+    app.get(["/", "/index.html"], (req, res) => {
+      try {
+        let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
+        
+        // Inject dynamic OG tags and title
+        template = injectOgTags(template, req.query);
+
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (err) {
+        res.status(500).send("Internal Server Error");
+      }
+    });
+
     // Serve other assets statically, but skip index.html so we can process it dynamically
     app.use(express.static(distPath, { index: false }));
 
-    // Dynamically inject custom metadata in production
+    // Dynamically inject custom metadata in production for any other route
     app.get("*", (req, res) => {
       try {
         let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
