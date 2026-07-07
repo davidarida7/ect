@@ -144,6 +144,13 @@ export default function App() {
     }
   }, []);
 
+  // Update Chrome tab / browser document title to match the event title
+  useEffect(() => {
+    if (title) {
+      document.title = title;
+    }
+  }, [title]);
+
   // 2. Fetch Theme details using Gemini on server
   const fetchThemeFromAPI = async (eventTitle: string) => {
     setLoadingTheme(true);
