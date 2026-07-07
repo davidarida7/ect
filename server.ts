@@ -231,39 +231,44 @@ app.post("/api/generate-image", async (req, res) => {
   }
 });
 
-function getOgTags(query: any): string {
+function injectOgTags(template: string, query: any): string {
   const titleParam = query.title || query.event || query.t || query.name;
+  const dateParam = query.date || query.time || query.d || query.dt;
+  const tzParam = query.timezone || query.tz || query.zone;
   const imageParam = query.image || query.img || query.photo || query.bg || query.url;
 
-  if (!titleParam) {
-    return `
-      <title>Momentum Countdown</title>
-      <meta property="og:title" content="Momentum Countdown" />
-      <meta property="og:description" content="Sleek custom live countdown event timer." />
-      <meta property="og:type" content="website" />
-    `;
-  }
+  // If required parameters are missing, let's keep it clean or fallback gracefully
+  const hasRequired = !!(titleParam && dateParam && tzParam);
+  const titleStr = hasRequired ? String(titleParam) : "Momentum Countdown";
+  const descStr = hasRequired 
+    ? `Live countdown to ${titleStr}.` 
+    : "Sleek custom live countdown event timer.";
 
-  const titleStr = String(titleParam);
   let tags = `
     <title>${titleStr}</title>
     <meta property="og:title" content="${titleStr}" />
-    <meta property="og:description" content="Anticipating the moments that lie ahead." />
+    <meta property="og:description" content="${descStr}" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${titleStr}" />
-    <meta name="twitter:description" content="Anticipating the moments that lie ahead." />
+    <meta name="twitter:description" content="${descStr}" />
   `;
 
   if (imageParam) {
     const imgUrl = String(imageParam);
     tags += `
-      <meta property="og:image" content="${imgUrl}" />
-      <meta name="twitter:image" content="${imgUrl}" />
+    <meta property="og:image" content="${imgUrl}" />
+    <meta name="twitter:image" content="${imgUrl}" />
     `;
   }
 
-  return tags;
+  // Remove any existing <title>...</title> tags (case-insensitive, multiline) to avoid duplicates
+  let result = template.replace(/<title\b[^>]*>([\s\S]*?)<\/title>/gi, "");
+
+  // Inject the dynamic tags immediately after the opening <head> tag
+  result = result.replace(/<head\b[^>]*>/i, (match) => `${match}\n${tags}`);
+
+  return result;
 }
 
 // Start server and handle Vite development vs production serving
@@ -283,9 +288,8 @@ async function startServer() {
         // Transform template through Vite (resolves module scripts, etc.)
         template = await vite.transformIndexHtml(url, template);
 
-        // Replace the default title block with dynamic OG tags and custom title
-        const ogTagsBlock = getOgTags(req.query);
-        template = template.replace("<title>My Google AI Studio App</title>", ogTagsBlock);
+        // Inject dynamic OG tags and title
+        template = injectOgTags(template, req.query);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (err) {
@@ -305,8 +309,8 @@ async function startServer() {
       try {
         let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
         
-        const ogTagsBlock = getOgTags(req.query);
-        template = template.replace("<title>My Google AI Studio App</title>", ogTagsBlock);
+        // Inject dynamic OG tags and title
+        template = injectOgTags(template, req.query);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (err) {
