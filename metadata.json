@@ -1,0 +1,6 @@
+{
+  "name": "Event Countdown Timer",
+  "description": "A beautiful, personalized countdown timer for any event. Takes title and date/time parameters via the address bar, uses Gemini to select a stunning related background, and lets you create your own custom countdowns.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
