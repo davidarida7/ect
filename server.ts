@@ -231,7 +231,55 @@ app.post("/api/generate-image", async (req, res) => {
   }
 });
 
-function injectOgTags(template: string, query: any): string {
+function parseRobustQuery(queryString: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (!queryString) return params;
+
+  const cleaned = queryString.replace(/^[?#]/, "");
+  if (!cleaned) return params;
+
+  const parts = cleaned.split("&");
+  const OUTER_KEYS = [
+    "title", "event", "t", "name",
+    "date", "time", "d", "dt",
+    "timezone", "tz", "zone",
+    "image", "img", "photo", "bg", "url"
+  ];
+  const IMAGE_KEYS = ["image", "img", "photo", "bg", "url"];
+
+  let lastUrlKey: string | null = null;
+
+  for (const part of parts) {
+    if (!part) continue;
+    const eqIdx = part.indexOf("=");
+    let key = eqIdx > -1 ? part.slice(0, eqIdx) : part;
+    let val = eqIdx > -1 ? part.slice(eqIdx + 1) : "";
+
+    try {
+      key = decodeURIComponent(key.replace(/\+/g, " "));
+      val = decodeURIComponent(val.replace(/\+/g, " "));
+    } catch (e) {
+      key = key.replace(/\+/g, " ");
+      val = val.replace(/\+/g, " ");
+    }
+
+    if (OUTER_KEYS.includes(key)) {
+      params[key] = val;
+      if (IMAGE_KEYS.includes(key)) {
+        lastUrlKey = key;
+      } else {
+        lastUrlKey = null;
+      }
+    } else if (lastUrlKey && params[lastUrlKey] !== undefined) {
+      const separator = params[lastUrlKey].includes("?") ? "&" : "?";
+      params[lastUrlKey] += `${separator}${key}=${val}`;
+    }
+  }
+
+  return params;
+}
+
+function injectOgTags(template: string, query: Record<string, string>): string {
   const titleParam = query.title || query.event || query.t || query.name;
   const imageParam = query.image || query.img || query.photo || query.bg || query.url;
 
@@ -288,7 +336,10 @@ async function startServer() {
         template = await vite.transformIndexHtml(url, template);
 
         // Inject dynamic OG tags and title
-        template = injectOgTags(template, req.query);
+        const qIdx = url.indexOf("?");
+        const qStr = qIdx > -1 ? url.slice(qIdx + 1) : "";
+        const robustQuery = parseRobustQuery(qStr);
+        template = injectOgTags(template, robustQuery);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (err) {
@@ -306,7 +357,11 @@ async function startServer() {
         let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
         
         // Inject dynamic OG tags and title
-        template = injectOgTags(template, req.query);
+        const url = req.originalUrl;
+        const qIdx = url.indexOf("?");
+        const qStr = qIdx > -1 ? url.slice(qIdx + 1) : "";
+        const robustQuery = parseRobustQuery(qStr);
+        template = injectOgTags(template, robustQuery);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (err) {
@@ -323,7 +378,11 @@ async function startServer() {
         let template = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
         
         // Inject dynamic OG tags and title
-        template = injectOgTags(template, req.query);
+        const url = req.originalUrl;
+        const qIdx = url.indexOf("?");
+        const qStr = qIdx > -1 ? url.slice(qIdx + 1) : "";
+        const robustQuery = parseRobustQuery(qStr);
+        template = injectOgTags(template, robustQuery);
 
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (err) {

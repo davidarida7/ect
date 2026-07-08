@@ -98,6 +98,55 @@ function getTargetTimeInTimezone(dateStr: string, timeZone: string): number {
   }
 }
 
+// Robust query string parser that correctly preserves nested parameters (like ? and &) within nested URLs
+function parseRobustQuery(queryString: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (!queryString) return params;
+
+  const cleaned = queryString.replace(/^[?#]/, "");
+  if (!cleaned) return params;
+
+  const parts = cleaned.split("&");
+  const OUTER_KEYS = [
+    "title", "event", "t", "name",
+    "date", "time", "d", "dt",
+    "timezone", "tz", "zone",
+    "image", "img", "photo", "bg", "url"
+  ];
+  const IMAGE_KEYS = ["image", "img", "photo", "bg", "url"];
+
+  let lastUrlKey: string | null = null;
+
+  for (const part of parts) {
+    if (!part) continue;
+    const eqIdx = part.indexOf("=");
+    let key = eqIdx > -1 ? part.slice(0, eqIdx) : part;
+    let val = eqIdx > -1 ? part.slice(eqIdx + 1) : "";
+
+    try {
+      key = decodeURIComponent(key.replace(/\+/g, " "));
+      val = decodeURIComponent(val.replace(/\+/g, " "));
+    } catch (e) {
+      key = key.replace(/\+/g, " ");
+      val = val.replace(/\+/g, " ");
+    }
+
+    if (OUTER_KEYS.includes(key)) {
+      params[key] = val;
+      if (IMAGE_KEYS.includes(key)) {
+        lastUrlKey = key;
+      } else {
+        lastUrlKey = null;
+      }
+    } else if (lastUrlKey && params[lastUrlKey] !== undefined) {
+      const separator = params[lastUrlKey].includes("?") ? "&" : "?";
+      params[lastUrlKey] += `${separator}${key}=${val}`;
+    }
+  }
+
+  return params;
+}
+
 export default function App() {
   // Query parameter values
   const [title, setTitle] = useState<string | null>(null);
@@ -126,17 +175,18 @@ export default function App() {
 
   // 1. Parse parameters on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlTitle = params.get("title") || params.get("event") || params.get("t") || params.get("name");
-    const urlDate = params.get("date") || params.get("time") || params.get("d") || params.get("dt");
-    const urlTimezone = params.get("timezone") || params.get("tz") || params.get("zone");
-    const urlBg = params.get("image") || params.get("img") || params.get("photo") || params.get("bg") || params.get("url");
+    const queryStr = window.location.search;
+    const params = parseRobustQuery(queryStr);
+    const urlTitle = params["title"] || params["event"] || params["t"] || params["name"];
+    const urlDate = params["date"] || params["time"] || params["d"] || params["dt"];
+    const urlTimezone = params["timezone"] || params["tz"] || params["zone"];
+    const urlBg = params["image"] || params["img"] || params["photo"] || params["bg"] || params["url"];
 
     if (urlTitle && urlDate && urlTimezone) {
       setTitle(urlTitle);
       setDateStr(urlDate);
       setTimezone(urlTimezone);
-      setImageUrlParam(urlBg);
+      setImageUrlParam(urlBg || null);
       setIsValid(true);
       fetchThemeFromAPI(urlTitle);
     } else {
